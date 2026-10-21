@@ -21,8 +21,8 @@ in your own browser, and take over the mouse when it needs a hand.
 - **Locked down by default.** TLS 1.3, separate tokens for you and the agent, ports bound to localhost, a sandboxed browser, and a non-root, read-only MCP container.
 
 <p align="center">
-  <img src="docs/images/desktop.png" alt="The Bot Station desktop: the Helium browser, opened by an agent over MCP, showing this repository on GitHub, with a top bar and a dock for the browser, Files and Terminal." width="900">
-  <br><sub>The desktop as an agent sees it: <code>browser_navigate</code> then <code>screenshot</code>, through the MCP server.</sub>
+  <img src="docs/images/desktop.png" alt="The Bot Station desktop with no windows open: a top bar with the app menu and clock, a night-forest wallpaper, and a dock with the browser, Files and Terminal." width="900">
+  <br><sub>The Bot Station desktop, captured through the agent API: the Helium browser, Files and Terminal in the dock.</sub>
 </p>
 
 ### How it fits together
