@@ -1,0 +1,38 @@
+/* ---------- Panels: solid bars (colors in xfce4-panel.xml) ---------- */
+#XfcePanelWindow button {
+  background: none;
+  border: none;
+  box-shadow: none;
+  border-radius: 8px;
+  color: #ffffff;
+}
+#XfcePanelWindow button:hover {
+  background-color: rgba(255, 255, 255, 0.14);
+}
+#docklike-plugin button {
+  border-radius: 10px;
+  padding: 3px 3px 6px 3px; /* room for the open-app dot */
+  margin: 2px 2px 0 2px;
+}
+
+/* ---------- Tooltips and menus: square, since there is no compositor to
+   blend rounded corners (they would show as black boxes) ---------- */
+tooltip, tooltip *, menu, .menu, .context-menu {
+  border-radius: 0;
+}
+
+/* ---------- Thunar: collapse the "you are using the root account" bar ---------- */
+infobar.warning,
+infobar.warning * {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 0;
+}
+
+/* ---------- Terminal: breathing room around the text ---------- */
+vte-terminal {
+  padding: 10px 14px;
+}

@@ -1,0 +1,24 @@
+<!doctype html>
+<!-- Worst case for software WebGL: a full-window scene redrawn every frame
+     (like a 3D map or a WebGL game). For tools/measure.sh. -->
+<meta charset="utf-8"><title>webgl</title>
+<style>html, body, canvas { margin: 0; width: 100%; height: 100%; display: block }</style>
+<canvas id="c"></canvas>
+<script>
+  const c = document.getElementById('c'), gl = c.getContext('webgl');
+  if (!gl) document.title = 'webgl: none';
+  else {
+    c.width = innerWidth; c.height = innerHeight;
+    const sh = (t, src) => { const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+    const p = gl.createProgram();
+    gl.attachShader(p, sh(gl.VERTEX_SHADER, 'attribute vec2 a; uniform float t; varying vec2 v; void main() { float c = cos(t), s = sin(t); v = a; gl_Position = vec4(mat2(c, -s, s, c) * a * 0.9, 0, 1); }'));
+    gl.attachShader(p, sh(gl.FRAGMENT_SHADER, 'precision mediump float; varying vec2 v; uniform float t; void main() { gl_FragColor = vec4(0.5 + 0.5 * sin(v.x * 9.0 + t), 0.5 + 0.5 * sin(v.y * 7.0 - t), 0.6, 1); }'));
+    gl.linkProgram(p); gl.useProgram(p);
+    const pts = []; for (let i = 0; i < 3000; i++) { const a = i * 2.39996, r = Math.sqrt(i / 3000); pts.push(Math.cos(a) * r, Math.sin(a) * r); }
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer()); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(pts), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    const t = gl.getUniformLocation(p, 't');
+    const frame = (ms) => { gl.clearColor(0.1, 0.1, 0.1, 1); gl.clear(gl.COLOR_BUFFER_BIT); gl.uniform1f(t, ms / 1000); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 3000); requestAnimationFrame(frame); };
+    requestAnimationFrame(frame);
+  }
+</script>

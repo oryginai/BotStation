@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" width="1000" height="560" role="img" aria-labelledby="t d">
+  <title id="t">Bot Station architecture</title>
+  <desc id="d">AI agents connect over MCP to the bot-station-mcp container, which drives the bot-station computer container through desktopd's agent API. People watch the same desktop through desktopd's live view.</desc>
+  <style>
+    :root { --bg:#ffffff; --fg:#1f2328; --muted:#59636e; --line:#8c959f; --host:#f6f8fa; --box:#ffffff; --accent:#0969da; --accent-bg:#ddf4ff; --green:#1a7f37; --green-bg:#dafbe1; --amber:#9a6700; --amber-bg:#fff8c5; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#0d1117; --fg:#e6edf3; --muted:#9198a1; --line:#6e7681; --host:#151b23; --box:#0d1117; --accent:#4493f8; --accent-bg:#0c2d6b; --green:#3fb950; --green-bg:#0f3d1e; --amber:#d29922; --amber-bg:#3b2e05; }
+    }
+    text { font-family: -apple-system, "Segoe UI", system-ui, Helvetica, Arial, sans-serif; fill: var(--fg); }
+    .bg { fill: var(--bg); }
+    .muted { fill: var(--muted); }
+    .small { font-size: 12px; }
+    .label { font-size: 13px; }
+    .title { font-size: 15px; font-weight: 600; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+    .host { fill: var(--host); stroke: var(--line); stroke-dasharray: 6 5; }
+    .box { fill: var(--box); stroke: var(--line); }
+    .agent { fill: var(--accent-bg); stroke: var(--accent); }
+    .mcp { fill: var(--accent-bg); stroke: var(--accent); stroke-width: 1.5; }
+    .core { fill: var(--green-bg); stroke: var(--green); stroke-width: 1.5; }
+    .vol { fill: var(--amber-bg); stroke: var(--amber); }
+    .wire { stroke: var(--fg); stroke-width: 1.6; fill: none; marker-end: url(#arrow); }
+    .wire2 { stroke: var(--fg); stroke-width: 1.6; fill: none; marker-end: url(#arrow); marker-start: url(#arrow-start); }
+    .dash { stroke: var(--amber); stroke-width: 1.4; stroke-dasharray: 4 4; fill: none; }
+    .arrowhead { fill: var(--fg); }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="arrowhead" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="arrow-start" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="arrowhead" d="M10,0 L0,5 L10,10 z"/></marker>
+  </defs>
+
+  <rect class="bg" width="1000" height="560"/>
+
+  <!-- Clients -->
+  <text class="title" x="20" y="44">AI agents</text>
+  <rect class="agent" x="20" y="60" width="210" height="36" rx="18"/>
+  <text class="label" x="125" y="83" text-anchor="middle">Claude Code</text>
+  <rect class="agent" x="20" y="106" width="210" height="36" rx="18"/>
+  <text class="label" x="125" y="129" text-anchor="middle">Codex</text>
+  <rect class="agent" x="20" y="152" width="210" height="36" rx="18"/>
+  <text class="label" x="125" y="175" text-anchor="middle">Cursor · VS Code · any MCP client</text>
+
+  <text class="title" x="20" y="334">People</text>
+  <rect class="box" x="20" y="348" width="210" height="52" rx="10"/>
+  <text class="label" x="125" y="370" text-anchor="middle">You, in a web browser</text>
+  <text class="small muted" x="125" y="388" text-anchor="middle">watch or take over</text>
+
+  <!-- Docker host -->
+  <rect class="host" x="270" y="16" width="714" height="528" rx="14"/>
+  <text class="small muted" x="290" y="38">Docker host · docker compose up -d</text>
+
+  <!-- MCP container -->
+  <rect class="mcp" x="296" y="60" width="250" height="150" rx="10"/>
+  <text class="title" x="314" y="86">mcp</text>
+  <text class="small muted" x="350" y="86">container bot-station-mcp</text>
+  <text class="label" x="314" y="114">26 MCP tools (Python)</text>
+  <text class="mono" x="314" y="138">127.0.0.1:8765/mcp</text>
+  <text class="small muted" x="314" y="160">Streamable HTTP</text>
+  <text class="small muted" x="314" y="180">Bearer MCP_TOKEN · host checks</text>
+  <text class="small muted" x="314" y="198">non-root · read-only</text>
+
+  <!-- Computer container -->
+  <rect class="box" x="590" y="60" width="374" height="390" rx="10"/>
+  <text class="title" x="608" y="86">computer</text>
+  <text class="small muted" x="684" y="86">container bot-station · Ubuntu + XFCE</text>
+
+  <rect class="core" x="608" y="100" width="338" height="96" rx="8"/>
+  <text class="title" x="624" y="124">desktopd</text>
+  <text class="small muted" x="700" y="124">Go · HTTPS / WSS</text>
+  <text class="mono" x="624" y="146">127.0.0.1:8443</text>
+  <text class="small" x="624" y="166">agent API · control API · live view</text>
+  <text class="small muted" x="624" y="184">TLS 1.3 · self-signed cert, pinned</text>
+
+  <rect class="box" x="608" y="246" width="338" height="54" rx="8"/>
+  <text class="label" x="777" y="268" text-anchor="middle">Xvfb display :1 · 1280×720</text>
+  <text class="small muted" x="777" y="287" text-anchor="middle">framebuffer is a shared memory-mapped file</text>
+
+  <rect class="box" x="608" y="340" width="104" height="84" rx="8"/>
+  <text class="label" x="660" y="372" text-anchor="middle">XFCE</text>
+  <text class="small muted" x="660" y="392" text-anchor="middle">xfwm4, panel,</text>
+  <text class="small muted" x="660" y="408" text-anchor="middle">dock</text>
+  <rect class="box" x="725" y="340" width="104" height="84" rx="8"/>
+  <text class="label" x="777" y="372" text-anchor="middle">Helium</text>
+  <text class="small muted" x="777" y="392" text-anchor="middle">browser</text>
+  <text class="small muted" x="777" y="408" text-anchor="middle">CDP :9222</text>
+  <rect class="box" x="842" y="340" width="104" height="84" rx="8"/>
+  <text class="label" x="894" y="372" text-anchor="middle">Terminal</text>
+  <text class="small muted" x="894" y="392" text-anchor="middle">and Files</text>
+
+  <!-- desktopd <-> Xvfb -->
+  <path class="wire2" d="M777,198 L777,244"/>
+  <text class="small muted" x="787" y="226">screen capture · XTEST input</text>
+  <!-- Xvfb -> apps -->
+  <path d="M660,300 L660,340 M777,300 L777,340 M894,300 L894,340" stroke="var(--line)" stroke-width="1.4"/>
+
+  <!-- Volumes -->
+  <rect class="vol" x="296" y="478" width="250" height="44" rx="22"/>
+  <text class="label" x="421" y="497" text-anchor="middle">bot-station-tls</text>
+  <text class="small muted" x="421" y="513" text-anchor="middle">desktopd cert, pinned by mcp</text>
+  <rect class="vol" x="590" y="478" width="180" height="44" rx="22"/>
+  <text class="label" x="680" y="497" text-anchor="middle">bot-station-home</text>
+  <text class="small muted" x="680" y="513" text-anchor="middle">/root: files, downloads</text>
+  <rect class="vol" x="784" y="478" width="180" height="44" rx="22"/>
+  <text class="label" x="874" y="497" text-anchor="middle">bot-station-browser</text>
+  <text class="small muted" x="874" y="513" text-anchor="middle">logins, history</text>
+  <path class="dash" d="M421,478 L421,212"/>
+  <path class="dash" d="M680,478 L680,452 M874,478 L874,452"/>
+
+  <!-- Agents -> MCP -->
+  <path class="wire" d="M232,124 L294,124"/>
+  <text class="small" x="236" y="116">MCP</text>
+  <!-- MCP -> desktopd -->
+  <path class="wire" d="M548,118 L606,118"/>
+  <text class="small" x="549" y="110">agent API</text>
+  <!-- People -> desktopd (live view) -->
+  <path class="wire" d="M232,374 L572,374 L572,186 L606,186"/>
+  <text class="small" x="250" y="366">live view: /view over WSS (JPEG tiles)</text>
+  <text class="small muted" x="250" y="394">one-time link from scripts/view.sh</text>
+</svg>

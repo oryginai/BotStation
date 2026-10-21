@@ -1,0 +1,53 @@
+<!doctype html>
+<!-- What the browser tells websites about itself. Serve it over http(s)
+     (tools/measure.sh does) and read the JSON in <pre id=out>. -->
+<meta charset="utf-8">
+<title>fingerprint</title>
+<pre id="out">running…</pre>
+<script>
+(async () => {
+  const r = {};
+  r.webdriver = navigator.webdriver;
+  r.userAgent = navigator.userAgent;
+  try {
+    const h = await navigator.userAgentData?.getHighEntropyValues(['platform', 'platformVersion', 'fullVersionList']);
+    r.uaBrands = h?.fullVersionList?.map((b) => b.brand + ' ' + b.version).join(', ');
+    r.uaPlatform = h?.platform;
+  } catch (e) { r.uaBrands = 'error: ' + e; }
+  r.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  r.tzOffsetMin = new Date().getTimezoneOffset();
+  r.languages = navigator.languages;
+  r.locale = Intl.DateTimeFormat().resolvedOptions().locale;
+  r.screen = [screen.width, screen.height, screen.colorDepth, devicePixelRatio];
+  r.hardwareConcurrency = navigator.hardwareConcurrency;
+  r.deviceMemory = navigator.deviceMemory;
+  r.plugins = navigator.plugins.length;
+  for (const kind of ['webgl', 'webgl2']) {
+    try {
+      const gl = document.createElement('canvas').getContext(kind);
+      if (!gl) { r[kind] = null; continue; }
+      const d = gl.getExtension('WEBGL_debug_renderer_info');
+      r[kind] = d ? gl.getParameter(d.UNMASKED_VENDOR_WEBGL) + ' / ' + gl.getParameter(d.UNMASKED_RENDERER_WEBGL)
+                  : gl.getParameter(gl.RENDERER);
+    } catch (e) { r[kind] = 'error: ' + e; }
+  }
+  // Fonts: compare text widths against the generic fallbacks
+  const probe = ['Arial', 'Helvetica', 'Times New Roman', 'Times', 'Courier New', 'Courier', 'Verdana', 'Georgia',
+    'Liberation Sans', 'Liberation Serif', 'Liberation Mono', 'DejaVu Sans', 'DejaVu Serif', 'DejaVu Sans Mono',
+    'Inter', 'Noto Sans', 'Noto Serif', 'Noto Mono', 'Noto Color Emoji', 'Noto Sans Devanagari', 'Noto Sans Arabic',
+    'Noto Sans Hebrew', 'Noto Sans Thai', 'Noto Sans Bengali', 'Noto Sans Tamil', 'Noto Sans Armenian',
+    'Noto Sans Georgian', 'Noto Sans Ethiopic', 'Noto Sans Khmer', 'Noto Sans Lao', 'Noto Sans Sinhala',
+    'Noto Sans Gujarati', 'Noto Sans Gurmukhi', 'Noto Sans Kannada', 'Noto Sans Malayalam', 'Noto Sans Telugu',
+    'Noto Sans Oriya', 'Noto Sans Myanmar', 'Noto Serif Display', 'Noto Sans Mono', 'Noto Sans Display',
+    'Ubuntu', 'Cantarell', 'Roboto', 'Open Sans', 'Segoe UI', 'Calibri', 'Cambria', 'Tahoma', 'Trebuchet MS'];
+  const c = document.createElement('canvas').getContext('2d'), s = 'mmmmmmmmmmlli1WQ@#&';
+  const w = (f) => { c.font = '72px ' + f; return c.measureText(s).width; };
+  const base = ['monospace', 'serif', 'sans-serif'].map(w);
+  r.fontsFound = probe.filter((f) => ['monospace', 'serif', 'sans-serif'].some((g, i) => w(`"${f}",${g}`) !== base[i]));
+  r.fontCount = r.fontsFound.length;
+  c.font = '32px sans-serif';
+  r.emojiWidth = Math.round(c.measureText('😀').width);
+  document.getElementById('out').textContent = 'FP=' + JSON.stringify(r);
+  document.title = 'fingerprint done';
+})();
+</script>

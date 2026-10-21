@@ -1,0 +1,12 @@
+[Icon Theme]
+Name=Agent
+Comment=App tiles and panel icons
+Inherits=Adwaita,hicolor
+Directories=scalable/apps
+
+[scalable/apps]
+Size=128
+MinSize=8
+MaxSize=512
+Type=Scalable
+Context=Applications

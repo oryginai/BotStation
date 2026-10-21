@@ -1,0 +1,99 @@
+# Bot Station: a Linux desktop for AI agents, plus its MCP server.
+#
+#   ./setup.sh               # writes .env with fresh tokens (once)
+#   docker compose up -d     # builds and starts both containers
+#
+# Then connect an agent to http://127.0.0.1:8765/mcp (./setup.sh prints the
+# exact command for Claude Code, Codex and others). All settings live in .env;
+# see .env.example.
+name: bot-station
+
+services:
+  # The computer: Xvfb + XFCE + Helium browser, and desktopd (HTTPS :8443),
+  # which serves the live view, the control API and the agent API.
+  computer:
+    build: ./computer
+    image: bot-station:latest
+    # Helium ships for x86_64 only; ARM hosts (Apple Silicon) run it emulated
+    platform: linux/amd64
+    container_name: bot-station
+    hostname: bot-station # stable across recreations (browser profile locks, shell prompt)
+    env_file: .env
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-8443}:8443"
+    volumes:
+      - home:/root # files, downloads, app settings: survive recreation and updates
+      - tls:/var/lib/desktopd # the self-signed certificate, also pinned by the MCP server
+      - browser:/home/browser # the browser's profile: logins, history, settings
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsk", "https://localhost:8443/healthz"]
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+      start_interval: 1s
+
+    # --- resource limits ---
+    deploy:
+      resources:
+        limits:
+          cpus: "${CPU_LIMIT:-2}"
+          memory: "${MEMORY_LIMIT:-2g}"
+          pids: ${PIDS_LIMIT:-2048} # processes + threads; the browser alone uses a few hundred
+    memswap_limit: "${MEMORY_LIMIT:-2g}" # same as memory: no swap on top of it
+    shm_size: "${SHM_SIZE:-256m}" # /dev/shm, used by the browser
+    tmpfs:
+      - /tmp:size=${TMP_SIZE:-512m} # in RAM, counts towards MEMORY_LIMIT
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "${LOG_MAX_SIZE:-10m}"
+        max-file: "3"
+
+    security_opt:
+      - no-new-privileges:true
+      # Docker's default seccomp profile + user namespaces, which the
+      # browser's sandbox needs (without it the browser would run unsandboxed)
+      - seccomp=./computer/seccomp.json
+
+  # The MCP server: the agent API as MCP tools, over Streamable HTTP.
+  # Talks to the computer on the internal network and pins its certificate
+  # straight from the shared volume, so there is nothing to copy by hand.
+  mcp:
+    build: ./mcp
+    image: bot-station-mcp:latest
+    container_name: bot-station-mcp
+    environment:
+      BOT_STATION_URL: https://computer:8443
+      BOT_STATION_TOKEN: ${AGENT_TOKEN:?AGENT_TOKEN is not set in .env - run ./setup.sh first}
+      BOT_STATION_CERT_PIN_FILE: /certs/cert.pem
+      MCP_TOKEN: ${MCP_TOKEN:-}
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-127.0.0.1:*,localhost:*,[::1]:*}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${MCP_PORT:-8765}:8765"
+    volumes:
+      - tls:/certs:ro
+    depends_on:
+      computer:
+        condition: service_healthy
+        restart: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256m
+    logging: *logging
+
+volumes:
+  home:
+    name: bot-station-home
+  tls:
+    name: bot-station-tls
+  browser:
+    name: bot-station-browser

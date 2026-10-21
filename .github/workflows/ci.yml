@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  desktopd:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: computer/server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: computer/server/go.mod
+          cache-dependency-path: computer/server/go.sum
+      - run: go vet ./...
+      - run: go test ./...
+
+  mcp:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uvx ruff check .
+      - run: uv sync --frozen
+      - run: uv run python -c "import bot_station_mcp.server"
+
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup creates .env with tokens
+        run: ./setup.sh && test -s .env
+      - run: docker compose config -q
+      - run: docker compose build

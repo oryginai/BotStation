@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Bot Station</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { display: grid; place-items: center; }
+  canvas {
+    display: block; outline: none; touch-action: none;
+    width: min(100vw, calc(100vh * 16 / 9)); height: auto;
+  }
+  #fullscreen {
+    position: fixed; bottom: 8px; right: 8px; padding: 6px 10px; border: 0; border-radius: 8px;
+    background: rgba(40, 40, 46, .8); color: #fff; font: 13px system-ui, sans-serif;
+    cursor: pointer; opacity: .35; transition: opacity .15s;
+  }
+  #fullscreen:hover { opacity: 1; }
+  :fullscreen #fullscreen { display: none; }
+  #msg {
+    position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center;
+    color: #9a9ca5; font: 15px system-ui, sans-serif; background: #000;
+  }
+  #msg[hidden] { display: none; }
+</style>
+<script type="module" src="/view.js"></script>
+</head>
+<body>
+  <canvas id="screen" width="1280" height="720" tabindex="0"></canvas>
+  <button id="fullscreen" title="Full screen (Esc to leave)">Full screen</button>
+  <div id="msg">Connecting…</div>
+</body>
+</html>

@@ -1,0 +1,10 @@
+# Optional hard cap on the container's disk usage (its writable layer).
+#   docker compose -f compose.yaml -f compose.disk-limit.yaml up -d --build
+# Docker only supports this with the overlay2 storage driver on an XFS
+# filesystem mounted with "pquota" (or the btrfs/zfs drivers). Docker Desktop
+# and most default Linux installs (ext4) refuse it: "storage-opt is
+# supported only for ...". Check yours with: docker info | grep -i -A3 storage
+services:
+  computer:
+    storage_opt:
+      size: "${DISK_LIMIT:-10G}"

@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bot Station</title>
+<style>
+  :root {
+    --bg: #0f1013; --panel: #17181c; --line: #2a2c33; --text: #e6e7ea;
+    --muted: #8b8e98; --accent: #4f8cff; --ok: #3ccf8e; --bad: #ff6b6b;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 16px;
+  }
+  .wrap { width: 100%; max-width: 1280px; display: flex; flex-direction: column; gap: 16px; }
+  .bar {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px;
+  }
+  input[type=text], input[type=password], input[type=number], select, textarea {
+    background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 9px; font: inherit; min-width: 0;
+  }
+  input[type=text], input[type=password] { flex: 1 1 160px; }
+  input[type=number] { width: 72px; }
+  textarea { width: 100%; resize: vertical; font-family: var(--mono); font-size: 12px; }
+  label { color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  button {
+    background: var(--line); color: var(--text); border: 0; border-radius: 8px;
+    padding: 7px 12px; font: inherit; cursor: pointer; white-space: nowrap;
+  }
+  button:hover { filter: brightness(1.2); }
+  button.primary { background: var(--accent); color: #fff; }
+  button.small { padding: 3px 8px; font-size: 12px; }
+  button:disabled { opacity: .45; cursor: default; filter: none; }
+  .status { margin-left: auto; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.on { background: var(--ok); } .dot.err { background: var(--bad); }
+  .monitor {
+    width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 12px;
+    border: 1px solid var(--line); overflow: hidden; position: relative;
+  }
+  canvas { width: 100%; height: 100%; display: block; outline: none; touch-action: none; }
+  .placeholder { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); }
+  .placeholder[hidden] { display: none; } /* else it stays on top and eats input */
+
+  h2 { font-size: 15px; margin: 8px 0 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px;
+    display: flex; flex-direction: column; gap: 8px; min-width: 0;
+  }
+  .card.wide { grid-column: 1 / -1; }
+  .card h3 { margin: 0; font-size: 13px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .row[hidden] { display: none; }
+  .row .grow { flex: 1; min-width: 0; }
+  .shot { position: relative; background: #000; border-radius: 8px; overflow: hidden; aspect-ratio: 16 / 9; }
+  .shot img { width: 100%; height: 100%; display: block; cursor: crosshair; }
+  .shot .placeholder { font-size: 13px; }
+  .shot .hl { position: absolute; border: 2px solid var(--accent); background: rgba(79,140,255,.15); pointer-events: none; }
+  .shot .hl[hidden] { display: none; }
+  .item.el:hover { background: var(--bg); }
+  .list { max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+  .list:empty { display: none; }
+  .item { display: flex; gap: 8px; align-items: center; padding: 5px 8px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .item:last-child { border-bottom: 0; }
+  .item .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item input { flex: 0 1 140px; padding: 3px 6px; font-size: 12px; }
+  .tag { font-family: var(--mono); font-size: 11px; color: var(--muted); flex: none; }
+  .active { color: var(--ok); }
+  pre {
+    margin: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px;
+    font: 12px/1.45 var(--mono); max-height: 240px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+  }
+  pre:empty { display: none; }
+  .log .ok { color: var(--ok); } .log .err { color: var(--bad); }
+  .hint { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <input id="server" type="text" placeholder="Server URL" spellcheck="false">
+    <input id="token" type="password" placeholder="Control or agent token" autocomplete="off">
+    <label><input id="viewOnly" type="checkbox"> View only</label>
+  </div>
+  <div class="bar">
+    <button id="enable">Enable</button>
+    <button id="view" class="primary">View</button>
+    <button id="tab">Open in new tab</button>
+    <button id="stop" disabled>Stop viewing</button>
+    <button id="disable">Disable</button>
+    <span class="status"><span id="dot" class="dot"></span><span id="status">Not connected</span></span>
+  </div>
+  <div class="monitor">
+    <canvas id="screen" width="1280" height="720" tabindex="0"></canvas>
+    <div id="placeholder" class="placeholder">Click View to open the desktop</div>
+  </div>
+
+  <h2>Agent API</h2>
+  <div class="grid">
+    <div class="card wide">
+      <h3>Screen</h3>
+      <div class="row">
+        <button id="agentStatus">Status</button>
+        <button id="shotBtn" class="primary">Screenshot</button>
+        <label>Scale <select id="shotScale"><option>1</option><option selected>0.75</option><option>0.5</option><option>0.25</option></select></label>
+        <label>Format <select id="shotFormat"><option>jpeg</option><option>png</option></select></label>
+        <label><input id="shotAuto" type="checkbox"> Refresh after each action</label>
+        <span id="shotInfo" class="hint"></span>
+      </div>
+      <span class="hint">The screenshot appears at the bottom of the page.</span>
+    </div>
+
+    <div class="card wide">
+      <h3>Browser <span class="hint">(needs BROWSER_AUTOMATION=true, the default)</span></h3>
+      <div class="row">
+        <input id="brUrl" type="text" placeholder="URL, e.g. duckduckgo.com" spellcheck="false">
+        <button id="brGo" class="primary">Go</button>
+        <button id="brNewTab">New tab</button>
+        <button id="brBack">Back</button>
+        <button id="brForward">Forward</button>
+        <button id="brReload">Reload</button>
+        <button id="brTabs">Tabs</button>
+      </div>
+      <div id="brTabList" class="list"></div>
+      <div class="row">
+        <button id="brSnap" class="primary">Snapshot</button>
+        <label><input id="brAll" type="checkbox"> Include offscreen</label>
+        <label>Text <input id="brText" type="number" value="0" min="0" step="500"></label>
+        <input id="brFilter" type="text" placeholder="Filter elements" spellcheck="false">
+        <span id="brInfo" class="hint"></span>
+      </div>
+      <div id="brDialog" class="row" hidden>
+        <span id="brDialogMsg" class="grow"></span>
+        <input id="brPrompt" type="text" placeholder="Prompt answer">
+        <button id="brAccept">Accept</button>
+        <button id="brDismiss">Dismiss</button>
+      </div>
+      <div id="brElements" class="list"></div>
+      <div class="row">
+        <input id="brFillText" type="text" placeholder="Text for fill (or a <select> option)">
+        <label><input id="brClear" type="checkbox" checked> Clear first</label>
+        <label><input id="brSubmit" type="checkbox"> Submit (Enter)</label>
+      </div>
+      <div class="row">
+        <label>Wait until <select id="brUntil"><option>load</option><option selected>idle</option><option>text</option></select></label>
+        <input id="brWaitText" type="text" placeholder="Text to wait for">
+        <button id="brWait">Wait</button>
+      </div>
+      <span class="hint">Hover over an element to outline it on the screenshot. Click and fill take a new snapshot afterwards.</span>
+      <pre id="brPageText"></pre>
+    </div>
+
+    <div class="card">
+      <h3>Keyboard &amp; mouse</h3>
+      <div class="row"><input id="typeText" type="text" placeholder="Text to type"><button id="typeBtn">Type</button></div>
+      <div class="row"><input id="keysText" type="text" placeholder="Keys, e.g. ctrl+l" spellcheck="false"><button id="keysBtn">Press</button></div>
+      <div class="row">
+        <button class="small" data-keys="enter">Enter</button>
+        <button class="small" data-keys="esc">Esc</button>
+        <button class="small" data-keys="tab">Tab</button>
+        <button class="small" data-keys="backspace">Backspace</button>
+        <button class="small" data-keys="ctrl+a">Ctrl+A</button>
+        <button class="small" data-keys="ctrl+c">Ctrl+C</button>
+        <button class="small" data-keys="ctrl+v">Ctrl+V</button>
+        <button class="small" data-keys="ctrl+l">Ctrl+L</button>
+        <button class="small" data-keys="ctrl+t">Ctrl+T</button>
+        <button class="small" data-keys="ctrl+w">Ctrl+W</button>
+        <button class="small" data-keys="alt+tab">Alt+Tab</button>
+      </div>
+      <div class="row">
+        <label>x <input id="mx" type="number" value="640"></label>
+        <label>y <input id="my" type="number" value="360"></label>
+        <button id="clickBtn">Click</button>
+        <button id="scrollUp">Scroll ↑</button>
+        <button id="scrollDown">Scroll ↓</button>
+      </div>
+      <div class="row">
+        <button id="waitStable">Wait until stable</button>
+        <button id="waitChange">Wait for change</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Apps &amp; windows</h3>
+      <div class="row">
+        <button data-launch="browser">Open browser</button>
+        <button data-launch="terminal">Open terminal</button>
+        <button data-launch="files">Open files</button>
+      </div>
+      <div class="row"><button id="winBtn">List windows</button></div>
+      <div id="winList" class="list"></div>
+    </div>
+
+    <div class="card">
+      <h3>Clipboard</h3>
+      <textarea id="clipText" rows="3" placeholder="Clipboard text"></textarea>
+      <div class="row"><button id="clipGet">Get</button><button id="clipSet">Set</button></div>
+    </div>
+
+    <div class="card">
+      <h3>Shell <span class="hint">(needs AGENT_EXEC=true)</span></h3>
+      <div class="row"><input id="cmd" type="text" placeholder="git --version" spellcheck="false"><button id="cmdBtn">Run</button></div>
+      <pre id="cmdOut"></pre>
+    </div>
+
+    <div class="card wide log">
+      <h3>Log</h3>
+      <pre id="log"></pre>
+    </div>
+
+    <div class="card wide">
+      <h3>Screenshot</h3>
+      <div class="shot">
+        <img id="shotImg" alt="" hidden>
+        <div id="shotHl" class="hl" hidden></div>
+        <div id="shotPlaceholder" class="placeholder">No screenshot yet. Once there is one, click on it to click the desktop at that spot.</div>
+      </div>
+      <div class="row">
+        <span class="hint">Click on screenshot:</span>
+        <label><input type="radio" name="clickMode" value="click" checked> left</label>
+        <label><input type="radio" name="clickMode" value="double_click"> double</label>
+        <label><input type="radio" name="clickMode" value="right"> right</label>
+        <label><input type="radio" name="clickMode" value="move"> move only</label>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+// Reference client and API test panel for Bot Station. In production,
+// keep tokens on your backend: it calls POST /api/sessions and hands the
+// page only the viewer token, which works once and expires after a minute.
+//
+// The self-signed certificate must be accepted once: open <server>/healthz.
+const $ = (id) => document.getElementById(id);
+const canvas = $('screen');
+let desktop = null;
+
+$('server').value = localStorage.getItem('desktop.server') ||
+  (location.protocol === 'https:' ? location.origin : 'https://localhost:8443');
+$('server').addEventListener('change', () => localStorage.setItem('desktop.server', base()));
+
+function base() { return $('server').value.trim().replace(/\/+$/, ''); }
+
+function setStatus(text, state) {
+  $('status').textContent = text;
+  $('dot').className = 'dot' + (state ? ' ' + state : '');
+}
+
+// Every call is logged with its status and round-trip time
+function log(method, path, ok, ms, detail = '') {
+  const line = document.createElement('div');
+  line.className = ok ? 'ok' : 'err';
+  line.textContent = `${new Date().toLocaleTimeString()}  ${method.padEnd(4)} ${path}  ${ok ? 'ok' : 'failed'}  ${ms} ms${detail ? '  ' + detail : ''}`;
+  $('log').prepend(line);
+  while ($('log').childElementCount > 200) $('log').lastChild.remove();
+}
+
+async function request(path, method = 'GET', body) {
+  const t0 = performance.now();
+  let res;
+  try {
+    res = await fetch(base() + path, {
+      method,
+      headers: { Authorization: 'Bearer ' + $('token').value, 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    log(method, path, false, Math.round(performance.now() - t0), 'unreachable');
+    throw new Error(`Can't reach ${base()} (self-signed certificate? open ${base()}/healthz once)`);
+  }
+  return { res, t0 };
+}
+
+async function api(path, method = 'GET', body) {
+  const { res, t0 } = await request(path, method, body);
+  const data = await res.json().catch(() => ({}));
+  const ms = Math.round(performance.now() - t0);
+  log(method, path, res.ok, ms, res.ok ? '' : data.error || res.status);
+  if (!res.ok) throw new Error(data.error || res.status + ' ' + res.statusText);
+  return data;
+}
+
+async function run(fn) {
+  try { await fn(); } catch (e) { setStatus(e.message, 'err'); }
+}
+
+// --- viewing ---
+
+const newSession = () => api('/api/sessions', 'POST', { view_only: $('viewOnly').checked });
+
+$('enable').onclick = () => run(async () => {
+  await api('/api/enable', 'POST');
+  setStatus('Streaming enabled', 'on');
+});
+
+$('disable').onclick = () => run(async () => {
+  await api('/api/disable', 'POST');
+  setStatus('Streaming disabled');
+});
+
+$('view').onclick = () => run(async () => {
+  const s = await newSession();
+  const { connectDesktop } = await import(base() + '/client.js');
+  desktop?.close();
+  desktop = connectDesktop(canvas, base().replace(/^http/, 'ws') + s.stream_path, s.token, {
+    onOpen() {
+      setStatus('Connected', 'on');
+      $('placeholder').hidden = true;
+      $('view').disabled = true;
+      $('stop').disabled = false;
+    },
+    onClose(reason, clean) {
+      desktop = null;
+      setStatus('Closed: ' + reason, clean ? '' : 'err');
+      $('placeholder').hidden = false;
+      $('view').disabled = false;
+      $('stop').disabled = true;
+    },
+  });
+});
+
+// The new tab must open inside the click (popup blockers), so open it first
+// and point it at the view link once the session exists
+$('tab').onclick = () => {
+  const tab = window.open('about:blank');
+  let opened = false;
+  run(async () => {
+    const s = await newSession();
+    tab.opener = null;
+    tab.location = s.view_url;
+    opened = true;
+    setStatus('Opened in a new tab', 'on');
+  }).finally(() => opened || tab.close());
+};
+
+$('stop').onclick = () => desktop?.close();
+
+// --- agent API: screen ---
+
+let shotURL = null;
+let screen = { width: 1280, height: 720 };
+
+async function screenshot() {
+  const q = `?scale=${$('shotScale').value}&format=${$('shotFormat').value}`;
+  const { res, t0 } = await request('/agent/screenshot' + q);
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    log('GET', '/agent/screenshot', false, Math.round(performance.now() - t0), data.error || res.status);
+    throw new Error(data.error || res.statusText);
+  }
+  const blob = await res.blob();
+  const ms = Math.round(performance.now() - t0);
+  screen = { width: +res.headers.get('X-Screen-Width') || 1280, height: +res.headers.get('X-Screen-Height') || 720 };
+  const info = `${res.headers.get('X-Image-Width')}×${res.headers.get('X-Image-Height')}, ${(blob.size / 1024).toFixed(0)} KB, ${ms} ms`;
+  log('GET', '/agent/screenshot' + q, true, ms, info);
+  $('shotInfo').textContent = info;
+  if (shotURL) URL.revokeObjectURL(shotURL);
+  shotURL = URL.createObjectURL(blob);
+  $('shotImg').src = shotURL;
+  $('shotImg').hidden = false;
+  $('shotPlaceholder').hidden = true;
+}
+
+$('shotBtn').onclick = () => run(screenshot);
+
+$('agentStatus').onclick = () => run(async () => {
+  const s = await api('/agent/status');
+  setStatus(`Screen ${s.width}×${s.height}, pointer ${s.pointer.x},${s.pointer.y}, browser ${s.browser.running ? 'open' : 'closed'}` +
+    ` (automation ${s.browser.automation ? 'on' : 'off'}), shell ${s.exec ? 'on' : 'off'}`, 'on');
+});
+
+// Runs input actions, then refreshes the screenshot if asked to
+async function act(actions) {
+  const r = await api('/agent/actions', 'POST', { actions });
+  if ($('shotAuto').checked) {
+    await api('/agent/actions', 'POST', { actions: [{ type: 'wait', until: 'stable', stable_ms: 300, timeout_ms: 3000 }] });
+    await screenshot();
+  }
+  return r;
+}
+
+// Clicking the screenshot clicks the same spot on the desktop
+$('shotImg').onclick = (e) => run(async () => {
+  const box = e.target.getBoundingClientRect();
+  const x = Math.round((e.clientX - box.left) / box.width * screen.width);
+  const y = Math.round((e.clientY - box.top) / box.height * screen.height);
+  $('mx').value = x; $('my').value = y;
+  const mode = document.querySelector('input[name=clickMode]:checked').value;
+  const a = mode === 'right' ? { type: 'click', button: 'right', x, y } : { type: mode, x, y };
+  await act([a]);
+});
+
+// --- keyboard & mouse ---
+
+$('typeBtn').onclick = () => run(() => act([{ type: 'type', text: $('typeText').value }]));
+$('typeText').onkeydown = (e) => { if (e.key === 'Enter') $('typeBtn').click(); };
+$('keysBtn').onclick = () => run(() => act([{ type: 'key', keys: $('keysText').value }]));
+$('keysText').onkeydown = (e) => { if (e.key === 'Enter') $('keysBtn').click(); };
+document.querySelectorAll('[data-keys]').forEach((b) => {
+  b.onclick = () => run(() => act([{ type: 'key', keys: b.dataset.keys }]));
+});
+const xy = () => ({ x: +$('mx').value, y: +$('my').value });
+$('clickBtn').onclick = () => run(() => act([{ type: 'click', ...xy() }]));
+$('scrollUp').onclick = () => run(() => act([{ type: 'scroll', ...xy(), dy: -5 }]));
+$('scrollDown').onclick = () => run(() => act([{ type: 'scroll', ...xy(), dy: 5 }]));
+$('waitStable').onclick = () => run(async () => {
+  const r = await api('/agent/actions', 'POST', { actions: [{ type: 'wait', until: 'stable', timeout_ms: 10000 }] });
+  setStatus(`Stable: ${r.results[0].ok} after ${r.results[0].waited_ms} ms`, 'on');
+});
+$('waitChange').onclick = () => run(async () => {
+  setStatus('Waiting up to 10 s for the screen to change…');
+  const r = await api('/agent/actions', 'POST', { actions: [{ type: 'wait', until: 'change', timeout_ms: 10000 }] });
+  setStatus(`Changed: ${r.results[0].ok} after ${r.results[0].waited_ms} ms`, 'on');
+});
+
+// --- apps & windows ---
+
+document.querySelectorAll('[data-launch]').forEach((b) => {
+  b.onclick = () => run(async () => {
+    await api('/agent/launch', 'POST', { app: b.dataset.launch });
+    setTimeout(() => $('winBtn').click(), 1500);
+  });
+});
+
+function button(label, fn) {
+  const b = document.createElement('button');
+  b.className = 'small';
+  b.textContent = label;
+  b.onclick = () => run(fn);
+  return b;
+}
+
+function item(tag, text, ...rest) {
+  const row = document.createElement('div');
+  row.className = 'item';
+  const t = document.createElement('span');
+  t.className = 'tag';
+  t.textContent = tag;
+  const g = document.createElement('span');
+  g.className = 'grow';
+  g.textContent = text;
+  g.title = text;
+  row.append(t, g, ...rest);
+  return row;
+}
+
+async function listWindows() {
+  const { windows } = await api('/agent/windows');
+  const rows = windows.map((w) => {
+    const r = item(w.app, `${w.title}  (${w.width}×${w.height} at ${w.x},${w.y})`,
+      ...['activate', 'maximize', 'minimize', 'close'].map((a) => button(a, async () => {
+        await api('/agent/windows', 'POST', { id: w.id, action: a });
+        setTimeout(listWindows, 300);
+      })));
+    if (w.active) r.querySelector('.grow').classList.add('active');
+    return r;
+  });
+  $('winList').replaceChildren(...rows);
+  if (!rows.length) setStatus('No windows open', 'on');
+}
+$('winBtn').onclick = () => run(listWindows);
+
+// --- browser ---
+
+// Refreshes the screenshot after a browser call, if asked to
+async function afterBrowser() {
+  if (!$('shotAuto').checked) return;
+  await api('/agent/actions', 'POST', { actions: [{ type: 'wait', until: 'stable', stable_ms: 300, timeout_ms: 3000 }] });
+  await screenshot();
+}
+
+function showTab(t) {
+  setStatus(`${t.title || '(no title)'} — ${t.url}`, 'on');
+}
+
+$('brGo').onclick = () => run(async () => {
+  const r = await api('/agent/browser/navigate', 'POST', { url: $('brUrl').value });
+  showTab(r.tab);
+  await snapshot();
+  await afterBrowser();
+});
+$('brUrl').onkeydown = (e) => { if (e.key === 'Enter') $('brGo').click(); };
+$('brNewTab').onclick = () => run(async () => {
+  const url = $('brUrl').value.trim();
+  const r = await api('/agent/browser/tabs', 'POST', url ? { action: 'new', url } : { action: 'new' });
+  showTab(r.tab);
+  await listTabs();
+  await afterBrowser();
+});
+for (const [id, body] of [['brBack', { back: true }], ['brForward', { forward: true }], ['brReload', { reload: true }]]) {
+  $(id).onclick = () => run(async () => {
+    const r = await api('/agent/browser/navigate', 'POST', body);
+    showTab(r.tab);
+    await snapshot();
+    await afterBrowser();
+  });
+}
+
+async function listTabs() {
+  const { tabs } = await api('/agent/browser/tabs');
+  $('brTabList').replaceChildren(...tabs.map((t) => {
+    const r = item(t.active ? 'active' : 'tab', `${t.title || '(no title)'} — ${t.url}`,
+      button('activate', async () => {
+        await api('/agent/browser/tabs', 'POST', { action: 'activate', id: t.id });
+        await listTabs();
+        await afterBrowser();
+      }),
+      button('close', async () => {
+        await api('/agent/browser/tabs', 'POST', { action: 'close', id: t.id });
+        await listTabs();
+        await afterBrowser();
+      }));
+    if (t.active) r.querySelector('.grow').classList.add('active');
+    return r;
+  }));
+}
+$('brTabs').onclick = () => run(listTabs);
+
+// Outlines an element (screen pixels) on the screenshot
+function highlight(e) {
+  const hl = $('shotHl');
+  if (!e || $('shotImg').hidden) { hl.hidden = true; return; }
+  hl.style.left = (e.x / screen.width * 100) + '%';
+  hl.style.top = (e.y / screen.height * 100) + '%';
+  hl.style.width = (e.width / screen.width * 100) + '%';
+  hl.style.height = (e.height / screen.height * 100) + '%';
+  hl.hidden = false;
+}
+
+let snap = null;
+const fillable = new Set(['textbox', 'searchbox', 'combobox', 'listbox', 'spinbutton', 'clickable']);
+
+function renderElements() {
+  if (!snap) return;
+  const f = $('brFilter').value.trim().toLowerCase();
+  const els = snap.elements.filter((e) => !f ||
+    [e.role, e.name, e.value, e.href].some((v) => v && String(v).toLowerCase().includes(f)));
+  $('brElements').replaceChildren(...els.map((e) => {
+    let text = e.name || '(no name)';
+    if (e.value) text += `  = "${e.value}"`;
+    if (e.checked !== undefined) text += e.checked ? '  [x]' : '  [ ]';
+    if (e.href) text += `  → ${e.href}`;
+    const flags = ['disabled', 'focused', 'offscreen'].filter((k) => e[k]);
+    if (flags.length) text += `  (${flags.join(', ')})`;
+    const buttons = [button('click', async () => {
+      await api('/agent/browser/click', 'POST', { ref: e.ref });
+      await settleAndSnapshot();
+    })];
+    if (fillable.has(e.role)) buttons.push(button('fill', async () => {
+      await api('/agent/browser/fill', 'POST', {
+        ref: e.ref, text: $('brFillText').value, clear: $('brClear').checked, submit: $('brSubmit').checked,
+      });
+      await settleAndSnapshot();
+    }));
+    const r = item(`${e.ref} ${e.role}`, text, ...buttons);
+    r.classList.add('el');
+    r.onmouseenter = () => highlight(e);
+    r.onmouseleave = () => highlight(null);
+    return r;
+  }));
+  $('brInfo').textContent = `${els.length}${f ? ' of ' + snap.elements.length : ''} elements, scrolled ${snap.scroll.y} of ${snap.scroll.height}px`;
+}
+
+async function snapshot() {
+  const t0 = performance.now();
+  snap = await api(`/agent/browser/snapshot?all=${$('brAll').checked}&text=${+$('brText').value || 0}`);
+  $('brDialog').hidden = !snap.dialog;
+  if (snap.dialog) {
+    $('brDialogMsg').textContent = `${snap.dialog.type}: ${snap.dialog.message}`;
+    $('brPrompt').value = snap.dialog.default_prompt || '';
+    $('brPrompt').hidden = snap.dialog.type !== 'prompt';
+  }
+  $('brPageText').textContent = snap.text || '';
+  renderElements();
+  setStatus(`${snap.title || '(no title)'} — ${snap.elements.length} elements in ${Math.round(performance.now() - t0)} ms`, 'on');
+}
+
+// After a click or fill: let the page react, then look again
+async function settleAndSnapshot() {
+  await api('/agent/actions', 'POST', { actions: [{ type: 'wait', until: 'stable', stable_ms: 300, timeout_ms: 3000 }] });
+  await snapshot();
+  if ($('shotAuto').checked) await screenshot();
+}
+
+$('brSnap').onclick = () => run(snapshot);
+$('brFilter').oninput = renderElements;
+
+$('brWait').onclick = () => run(async () => {
+  const until = $('brUntil').value;
+  setStatus(`Waiting for ${until}…`);
+  const r = await api('/agent/browser/wait', 'POST', until === 'text' ? { until, text: $('brWaitText').value } : { until });
+  setStatus(`${until}: ${r.ok ? 'yes' : 'timed out'} after ${r.waited_ms} ms`, r.ok ? 'on' : 'err');
+});
+
+for (const [id, accept] of [['brAccept', true], ['brDismiss', false]]) {
+  $(id).onclick = () => run(async () => {
+    const body = { accept };
+    if (accept && !$('brPrompt').hidden) body.text = $('brPrompt').value;
+    await api('/agent/browser/dialog', 'POST', body);
+    await settleAndSnapshot();
+  });
+}
+
+// --- clipboard & shell ---
+
+$('clipGet').onclick = () => run(async () => { $('clipText').value = (await api('/agent/clipboard')).text; });
+$('clipSet').onclick = () => run(() => api('/agent/clipboard', 'POST', { text: $('clipText').value }));
+
+$('cmdBtn').onclick = () => run(async () => {
+  const r = await api('/agent/exec', 'POST', { command: $('cmd').value });
+  $('cmdOut').textContent = `$ ${$('cmd').value}\n${r.stdout}${r.stderr}\n[exit ${r.exit_code}${r.timed_out ? ', timed out' : ''}, ${r.duration_ms} ms]`;
+});
+$('cmd').onkeydown = (e) => { if (e.key === 'Enter') $('cmdBtn').click(); };
+</script>
+</body>
+</html>

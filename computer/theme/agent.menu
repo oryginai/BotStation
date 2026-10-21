@@ -1,0 +1,11 @@
+<!DOCTYPE Menu PUBLIC "-//freedesktop//DTD Menu 1.0//EN"
+  "http://www.freedesktop.org/standards/menu-spec/1.0/menu.dtd">
+<!-- Flat menu for the panel's app button and right-click on the desktop:
+     every installed launcher (just our 3), no categories, no Run/Settings/
+     Log Out entries -->
+<Menu>
+  <Name>Applications</Name>
+  <DefaultAppDirs/>
+  <Include><All/></Include>
+  <Layout><Merge type="files"/></Layout>
+</Menu>

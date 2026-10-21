@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Files
+GenericName=File Manager
+Exec=thunar %U
+Icon=org.xfce.thunar
+Categories=System;FileManager;
+MimeType=inode/directory;
+StartupWMClass=Thunar
+StartupNotify=true

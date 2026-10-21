@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- A long, paint-heavy page for the scrolling CPU test (tools/measure.sh) -->
+<meta charset="utf-8"><title>heavy</title>
+<style>
+  body { margin: 0; font: 16px/1.5 sans-serif; background: linear-gradient(#f6f3ee, #dde6f0); }
+  .card { margin: 16px auto; max-width: 900px; padding: 24px; border-radius: 16px; background: #fff;
+          box-shadow: 0 8px 30px rgba(0,0,0,.18); }
+  .card h2 { background: linear-gradient(90deg, #c33, #36c); -webkit-background-clip: text; color: transparent; }
+  .row { display: flex; gap: 8px; } .row div { flex: 1; height: 60px; border-radius: 8px; }
+</style>
+<script>
+  const words = 'lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor 😀 ✓ हिन्दी العربية'.split(' ');
+  for (let i = 0; i < 300; i++) {
+    let t = ''; for (let j = 0; j < 120; j++) t += words[(i * 7 + j * 13) % words.length] + ' ';
+    let row = ''; for (let k = 0; k < 6; k++) row += `<div style="background:hsl(${(i * 37 + k * 50) % 360} 70% 60%)"></div>`;
+    document.write(`<div class="card"><h2>Section ${i}</h2><p>${t}</p><div class="row">${row}</div></div>`);
+  }
+</script>

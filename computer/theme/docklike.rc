@@ -1,0 +1,15 @@
+[user]
+pinned=helium;thunar;xfce4-terminal;
+forceIconSize=true
+iconSize=40
+indicatorStyle=1
+inactiveIndicatorStyle=1
+indicatorOrientation=1
+indicatorColorFromTheme=false
+indicatorColor=rgba(255,255,255,0.95)
+inactiveColor=rgba(255,255,255,0.6)
+showPreviews=false
+showWindowCount=false
+noWindowsListIfSingle=true
+keyComboActive=false
+keyAloneActive=false

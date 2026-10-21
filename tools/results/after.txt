@@ -1,0 +1,10 @@
+== after  2026-10-18T09:43:11+05:30
+image: 1.62GB
+browser cold start + first page: 486 ms
+fingerprint: {"webdriver":false,"userAgent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36","uaBrands":"Google Chrome 155.0.8059.79, Chromium 155.0.8059.79, Not(A:Brand 24.0.0.0","uaPlatform":"Linux","timezone":"Asia/Calcutta","tzOffsetMin":-330,"languages":["en-IN"],"locale":"en-US","screen":[1280,720,24,1],"hardwareConcurrency":14,"deviceMemory":8,"plugins":5,"webgl":"Google Inc. (Google) / ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)","webgl2":"Google Inc. (Google) / ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)","fontsFound":["Arial","Helvetica","Times New Roman","Times","Courier New","Courier","Liberation Sans","Liberation Serif","Liberation Mono","DejaVu Sans","DejaVu Serif","DejaVu Sans Mono","Noto Sans","Noto Serif","Noto Mono","Noto Color Emoji","Noto Sans Devanagari","Noto Sans Arabic","Noto Sans Bengali","Noto Sans Tamil","Noto Sans Sinhala","Noto Sans Gujarati","Noto Sans Gurmukhi","Noto Sans Kannada","Noto Sans Malayalam","Noto Sans Telugu","Noto Sans Oriya","Noto Serif Display","Noto Sans Mono","Noto Sans Display"],"fontCount":30,"emojiWidth":40}
+idle cpu (20 s, still page): 0.6%
+memory idle: 467 MiB total, 418 MiB anon (processes, excl. file cache)
+scroll cpu (heavy page): 29.1%
+memory after scroll: 451 MiB total, 378 MiB anon, peak 494 MiB
+webgl animation cpu (15 s): 24.2%, anon 410 MiB
+processes+threads: 186

@@ -1,0 +1,9 @@
+== exp-A  2026-10-18T09:33:24+05:30
+image: 1.52GB
+browser cold start + first page: 589 ms
+fingerprint: {"webdriver":false,"userAgent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36","uaBrands":"Google Chrome 155.0.8059.79, Chromium 155.0.8059.79, Not(A:Brand 24.0.0.0","uaPlatform":"Linux","timezone":"UTC","tzOffsetMin":0,"languages":["en-US"],"locale":"en-US","screen":[1280,720,24,1],"hardwareConcurrency":14,"deviceMemory":8,"plugins":5,"webgl":"Google Inc. (Google) / ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)","webgl2":"Google Inc. (Google) / ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)","fontsFound":["DejaVu Sans","DejaVu Serif","DejaVu Sans Mono"],"fontCount":3,"emojiWidth":33}
+idle cpu (20 s, still page): 0.6%
+memory idle: 1081 MiB total, 522 MiB anon (processes, excl. file cache)
+scroll cpu (heavy page): 199.7%
+memory after scroll: 1057 MiB total, 497 MiB anon, peak 1098 MiB
+processes+threads: 177

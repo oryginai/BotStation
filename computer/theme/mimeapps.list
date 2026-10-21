@@ -1,0 +1,42 @@
+[Default Applications]
+text/html=helium.desktop
+application/xhtml+xml=helium.desktop
+x-scheme-handler/http=helium.desktop
+x-scheme-handler/https=helium.desktop
+inode/directory=thunar.desktop
+# Files: the browser shows images, video, audio, PDF and text, so no
+# separate viewer or player is installed
+image/png=helium.desktop
+image/jpeg=helium.desktop
+image/gif=helium.desktop
+image/webp=helium.desktop
+image/avif=helium.desktop
+image/bmp=helium.desktop
+image/svg+xml=helium.desktop
+image/x-icon=helium.desktop
+image/apng=helium.desktop
+video/mp4=helium.desktop
+video/webm=helium.desktop
+video/ogg=helium.desktop
+video/x-matroska=helium.desktop
+video/quicktime=helium.desktop
+audio/mpeg=helium.desktop
+audio/ogg=helium.desktop
+audio/x-vorbis+ogg=helium.desktop
+audio/x-opus+ogg=helium.desktop
+audio/opus=helium.desktop
+audio/flac=helium.desktop
+audio/x-flac=helium.desktop
+audio/wav=helium.desktop
+audio/x-wav=helium.desktop
+audio/vnd.wave=helium.desktop
+audio/mp4=helium.desktop
+audio/aac=helium.desktop
+audio/webm=helium.desktop
+application/pdf=helium.desktop
+text/plain=helium.desktop
+application/json=helium.desktop
+application/xml=helium.desktop
+text/xml=helium.desktop
+text/csv=helium.desktop
+text/markdown=helium.desktop

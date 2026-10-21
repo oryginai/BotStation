@@ -1,0 +1,31 @@
+# Secrets: tokens live here (see .env.example)
+.env
+.env.*
+**/.env
+!.env.example
+*.pem
+*.key
+
+# Python: virtual environments and caches
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.uv-cache/
+*.egg-info/
+dist/
+build/
+
+# Go
+computer/server/desktopd
+computer/server/wallpaper
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store

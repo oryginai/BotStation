@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Terminal
+GenericName=Terminal Emulator
+Exec=xfce4-terminal
+Icon=org.xfce.terminal
+Categories=System;TerminalEmulator;
+StartupWMClass=Xfce4-terminal
+StartupNotify=true
