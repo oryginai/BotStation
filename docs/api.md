@@ -477,6 +477,39 @@ Returns `{ "ok": true }`. The call doesn't wait for the page to react. Follow wi
 
 Answers the open alert, confirm, prompt or "leave page?" dialog in the tab. `accept: false` presses Cancel. `text` fills a prompt. Returns `{ "ok": true }`, or `400` if no dialog is open.
 
+### `POST /agent/browser/upload`
+
+```json
+{ "paths": ["/root/Downloads/report.pdf"] }
+```
+
+With the upload guard on (`BROWSER_UPLOAD_GUARD`, the default), the browser's file picker never opens, in any tab. When a page asks for a file (after a click on its upload button or file field), the snapshot has `"file_chooser": {"mode": "selectSingle" | "selectMultiple"}`, and this call answers it.
+
+- Each path must resolve (symlinks too) to a regular file under `UPLOAD_DIRS` (default `/root`) that the browser user can read. The browser profile (`/home/browser`: cookies, saved passwords) can never be sent.
+- Returns `{ "ok": true, "files": [...] }`; `400` if the page hasn't asked for a file or a path is refused.
+
+Why: the picker runs as the browser user, who can read the profile. An agent steered by a hostile page ("upload the saved session cookies") could otherwise pick the cookie database itself.
+
+### Prompt-injection flag
+
+`GET /agent/browser/snapshot` sets `"injection": true` when the page's title, element names or text look written to steer an AI agent ("ignore previous instructions", "upload the session cookies"...). It's a heuristic, recorded as an alert in the audit log; the MCP server also fences all page content as untrusted.
+
+## Audit log and undo
+
+Every agent API call is recorded: time, call, arguments (long strings cut at 500 characters), status, error, the window in front, and facts the handler adds (exit code and output of `exec`, uploaded files, the page's URL). Calls that name the browser profile, and snapshots of pages with a prompt injection, get an `alerts` list. Records go to the **keeper** service (`KEEPER_URL`), which runs in its own container with its own volumes, so an agent that is root on the computer can't erase them; POSTs are also logged by desktopd (`docker compose logs computer`).
+
+Before any `POST` (except the clipboard), desktopd asks keeper for a snapshot of `/root` if the newest is older than `SNAPSHOT_INTERVAL`; before `exec`, always. keeper also snapshots every `SNAPSHOT_INTERVAL` if anything changed (a person's edits too). Snapshots are rsync copies hard-linked to the one before, so unchanged files are stored once; each records what changed since the previous one.
+
+```bash
+scripts/undo.sh                               # snapshots, newest first
+scripts/undo.sh log -n 100                    # the audit log, one line per call
+scripts/undo.sh show <id>                     # what changed just before <id>
+scripts/undo.sh diff <id> Documents/client    # what a restore would do
+scripts/undo.sh restore <id> Documents/client # put it back (asks first)
+```
+
+A restore snapshots the current state first, so it can be undone too, and is itself recorded in the audit log. The browser profile is not snapshotted (it holds the logins, and the browser rewrites it constantly).
+
 ## Recipes
 
 ### See, act, verify, in one round trip
@@ -526,6 +559,10 @@ Set in `.env` at the repository root; see [`.env.example`](../.env.example) for 
 | `AGENT_API` | `true` | `false` removes every `/agent/` route |
 | `AGENT_EXEC` | `false` | Enables `POST /agent/exec` (root shell) |
 | `BROWSER_AUTOMATION` | `true` | Opens Helium's debugging port (inside the container only) and enables `/agent/browser/...` |
+| `BROWSER_UPLOAD_GUARD` | `true` | File pickers never open; pages get files through `/agent/browser/upload` only |
+| `UPLOAD_DIRS` | `/root` | Comma-separated folders uploads may come from |
+| `SNAPSHOT_INTERVAL` | `60` | Seconds: keeper's snapshot cadence, and the max age of the undo point before an agent action |
+| `SNAPSHOT_KEEP` | `100` | Snapshots kept |
 | `AGENT_HUMAN_INPUT` | `true` | Agent input at a person's pace: the pointer travels to clicks on a curved path (cubic Bézier, sometimes S-shaped, bending up to 12% of the distance; a third of moves over 150 px overshoot by up to 18 px and correct back), with a minimum-jerk speed profile and uneven step timing, in ~0.25–0.5 s; drags never overshoot; keys come ~30 ms apart (varied; text over 300 characters is typed at once), wheel clicks 20–50 ms apart. `false`: instant |
 | `TZ` | UTC | Timezone of the browser and desktop, e.g. `Asia/Kolkata`. Set it to the IP's region |
 | `BROWSER_LANG` | `en-US,en` | Browser languages, most preferred first. Set it to the IP's region |
@@ -542,4 +579,6 @@ Set in `.env` at the repository root; see [`.env.example`](../.env.example) for 
 
 - **Shared input.** The agent and a human viewer use the same mouse and keyboard. Using both at once mixes the input.
 - **Datacenter IPs.** Many sites block cloud-provider IPs whatever the browser does ("Access denied"). Use `BROWSER_PROXY` with a fixed ISP/residential IP in the region of `TZ`/`BROWSER_LANG`. For Cloudflare sites, the lasting fix is a verified bot identity (Cloudflare's signed agents / Web Bot Auth), set up for the platform rather than in this container.
+- **Root on the desktop.** The terminal and Files run as root, and an agent can open them with plain clicks even when `AGENT_EXEC=false`. From there it can read the browser profile. The audit log records what it typed (and flags profile paths), but nothing blocks it. Keeping logins truly out of the agent's reach needs the browser in a separate container.
+- **Upload guard and people.** With the guard on, a person in the live view can't use file pickers either. Drag and drop from Files into a page isn't guarded.
 - **Browser structure stops at iframes.** Elements inside `<iframe>`s (embedded checkouts, some login widgets, captchas) and canvas-drawn apps aren't in snapshots. Use screenshots and coordinates there.

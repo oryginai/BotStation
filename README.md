@@ -10,7 +10,7 @@
 
 Bot Station gives an AI agent a real computer to work in: a desktop with a
 browser, a terminal and a file manager. The agent drives it through
-**26 MCP tools**: screenshots, mouse, keyboard, windows, clipboard, and web
+**27 MCP tools**: screenshots, mouse, keyboard, windows, clipboard, and web
 pages read by their structure instead of by pixels. You can watch what it does
 in your own browser, and take over the mouse when it needs a hand.
 
@@ -19,6 +19,8 @@ in your own browser, and take over the mouse when it needs a hand.
 - **Built for agents.** Page snapshots list every interactive element with a ref, so `browser_click(ref=5)` replaces guessing coordinates. Every action can return the next screenshot or snapshot in the same call.
 - **Live view, no VNC.** A purpose-built streaming server (`desktopd`, Go) sends JPEG tiles over a WebSocket. It costs nothing while the screen is idle.
 - **Locked down by default.** TLS 1.3, separate tokens for you and the agent, ports bound to localhost, a sandboxed browser, and a non-root, read-only MCP container.
+- **Undo and an audit trail.** Every agent action is logged, and the home folder is snapshotted as the agent works, both in a container the agent can't reach. `scripts/undo.sh` shows what happened and puts files back in seconds.
+- **Hard to talk into leaking logins.** Page content reaches the agent marked as untrusted, prompt injections are flagged, and file uploads can't touch the browser profile.
 
 <p align="center">
   <img src="docs/images/desktop.png" alt="The Bot Station desktop with no windows open: a top bar with the app menu and clock, a night-forest wallpaper, and a dock with the browser, Files and Terminal." width="900">
@@ -139,13 +141,29 @@ The agent and you share one mouse and keyboard. When a site shows a human
 check (a CAPTCHA, a Cloudflare challenge), the agent is told to ask you to
 solve it in the live view rather than try to get around it.
 
+## Undo what the agent did
+
+The `keeper` service records every agent action and snapshots `/root`
+while the agent works (every minute if something changed, and right before
+shell commands). Both live in volumes only keeper mounts, so the agent
+can't erase them.
+
+```bash
+scripts/undo.sh                                    # snapshots, newest first
+scripts/undo.sh log                                # what the agent did, one line per action
+scripts/undo.sh diff <id> Documents/client-acme    # what a restore would bring back
+scripts/undo.sh restore <id> Documents/client-acme # put it back (the current state is snapshotted first)
+```
+
+See [docs/api.md](docs/api.md#audit-log-and-undo) for what's recorded.
+
 ## What the agent gets
 
 | | Tools |
 |---|---|
 | **Screen and input** (any app) | `screenshot`, `click`, `move_mouse`, `drag`, `scroll`, `type_text`, `press_keys`, `run_actions` (up to 100 steps per call), `wait_for_screen` |
 | **Desktop** | `computer_status`, `list_windows`, `window_action`, `launch_app`, `get_clipboard`, `set_clipboard`, `run_shell` (off unless `AGENT_EXEC=true`) |
-| **Browser by structure** | `browser_snapshot`, `browser_navigate`, `browser_click`, `browser_fill`, `browser_wait`, `browser_dialog`, `browser_tabs`, `browser_new_tab`, `browser_switch_tab`, `browser_close_tab` |
+| **Browser by structure** | `browser_snapshot`, `browser_navigate`, `browser_click`, `browser_fill`, `browser_wait`, `browser_dialog`, `browser_upload`, `browser_tabs`, `browser_new_tab`, `browser_switch_tab`, `browser_close_tab` |
 
 A page snapshot, as the agent sees it:
 
@@ -239,6 +257,7 @@ BotStation/
 ├── scripts/
 │   ├── connect.sh          # MCP connect snippets for each client
 │   ├── view.sh             # one-time live-view link
+│   ├── undo.sh             # audit log, snapshots, restore
 │   └── screenshot.sh       # PNG of the desktop
 ├── computer/               # the desktop image
 │   ├── Dockerfile          # Go build → Helium (signature-checked) → Ubuntu + XFCE
@@ -260,6 +279,7 @@ BotStation/
 
 ## Documentation
 
+- [DEMO.md](DEMO.md): a guided demo — prompts to give a connected agent, with what to watch and how to verify (undo a mistake, resist a cookie-stealing page, and more)
 - [docs/architecture.md](docs/architecture.md): how it's built and why, the streaming protocol, security model, performance numbers and lessons learned
 - [docs/api.md](docs/api.md): the HTTP API (`/api/...` control, `/agent/...` agent), for use without MCP
 - [mcp/README.md](mcp/README.md): MCP tools, settings, running without Docker (stdio)

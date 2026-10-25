@@ -1,7 +1,7 @@
 # Bot Station MCP server
 
 Lets an AI agent see and drive a Bot Station through MCP. It wraps the
-computer's agent API ([docs/api.md](../docs/api.md)) as 26 tools:
+computer's agent API ([docs/api.md](../docs/api.md)) as 27 tools:
 screenshots, mouse, keyboard, windows, clipboard, apps, shell, and the
 browser's pages by structure.
 
@@ -115,6 +115,7 @@ Every action can return what the agent needs next in the same call, through
 | `browser_click`, `browser_fill` | By ref, with the real mouse and keyboard; `fill` also picks `<select>` options |
 | `browser_wait` | Load, network idle, or some text on the page |
 | `browser_dialog` | Answer alert / confirm / prompt |
+| `browser_upload` | Answer a page's file request with files under `/root` (file pickers never open) |
 | `browser_tabs`, `browser_new_tab`, `browser_switch_tab`, `browser_close_tab` | Tabs |
 
 A snapshot as the agent sees it:

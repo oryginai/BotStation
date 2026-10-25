@@ -1,0 +1,15 @@
+# Test sites for the prompt-injection demo, on the compose network:
+#   docker compose -f compose.yaml -f demo/compose.demo.yaml up -d demo
+# The computer's browser reaches them as http://bank.test:8000 and
+# http://evil.test:8000. Uploads land in the container's /tmp/received and
+# in `docker compose logs demo`.
+services:
+  demo:
+    image: python:3.13-slim
+    container_name: bot-station-demo
+    command: ["python", "-u", "/app/server.py"]
+    volumes:
+      - ./demo/server.py:/app/server.py:ro
+    networks:
+      default:
+        aliases: [bank.test, evil.test]

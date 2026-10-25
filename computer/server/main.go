@@ -70,10 +70,14 @@ type config struct {
 	clipToDesktop  bool // viewers may paste into the desktop
 	clipToViewer   bool // text copied in the desktop is sent to viewers
 	agentAPI       bool
-	agentToken     string // agent API only; CONTROL_TOKEN works there too
-	agentExec      bool   // POST /agent/exec runs shell commands
-	browserAuto    bool   // /agent/browser/... (helium.sh opens the debugging port)
-	humanInput     bool   // agent input moves and types at a person's pace
+	agentToken     string        // agent API only; CONTROL_TOKEN works there too
+	agentExec      bool          // POST /agent/exec runs shell commands
+	browserAuto    bool          // /agent/browser/... (helium.sh opens the debugging port)
+	humanInput     bool          // agent input moves and types at a person's pace
+	keeperURL      string        // audit log and snapshots (cmd/keeper); "" = audit to the log only
+	snapshotEvery  time.Duration // max age of the undo point before an agent action
+	uploadGuard    bool          // file pickers in the browser go through /agent/browser/upload
+	uploadDirs     []string      // where uploaded files may come from
 }
 
 func loadConfig() config {
@@ -101,6 +105,10 @@ func loadConfig() config {
 		agentExec:      env("AGENT_EXEC", "false") == "true",
 		browserAuto:    env("BROWSER_AUTOMATION", "true") == "true",
 		humanInput:     env("AGENT_HUMAN_INPUT", "true") == "true",
+		keeperURL:      os.Getenv("KEEPER_URL"),
+		snapshotEvery:  time.Duration(envInt("SNAPSHOT_INTERVAL", 60)) * time.Second,
+		uploadGuard:    env("BROWSER_UPLOAD_GUARD", "true") == "true",
+		uploadDirs:     strings.Split(env("UPLOAD_DIRS", "/root"), ","),
 	}
 	if c.agentToken != "" && len(c.agentToken) < 32 {
 		log.Fatal("AGENT_TOKEN must be at least 32 characters (try: openssl rand -hex 32)")
@@ -133,6 +141,7 @@ type server struct {
 	x     *xconn
 	br    *browser
 	fails *limiter
+	audit *auditor
 
 	mu      sync.Mutex
 	enabled bool
@@ -151,7 +160,8 @@ func main() {
 	s := &server{
 		cfg:     cfg,
 		fb:      fb,
-		br:      newBrowser(cdpAddr),
+		br:      newBrowser(cdpAddr, cfg.uploadGuard),
+		audit:   newAuditor(cfg.keeperURL, cfg.snapshotEvery),
 		fails:   newLimiter(10, time.Minute),
 		enabled: cfg.enabled,
 		tokens:  map[string]session{},
@@ -176,6 +186,9 @@ func main() {
 	mux.HandleFunc("GET /client.js", s.static("web/client.js", "text/javascript; charset=utf-8"))
 	if cfg.agentAPI {
 		s.agentRoutes(mux)
+		if cfg.browserAuto && cfg.uploadGuard {
+			go s.guardTabs()
+		}
 	}
 
 	srv := &http.Server{
@@ -198,8 +211,9 @@ func main() {
 		MinVersion:   tls.VersionTLS13,
 		Certificates: []tls.Certificate{cert},
 	}
-	log.Printf("desktopd on https://%s (%dx%d, streaming %s, agent API %s, exec %s, browser automation %s)",
-		cfg.listen, fb.width, fb.height, onOff(s.enabled), onOff(cfg.agentAPI), onOff(cfg.agentExec), onOff(cfg.browserAuto))
+	log.Printf("desktopd on https://%s (%dx%d, streaming %s, agent API %s, exec %s, browser automation %s, upload guard %s, keeper %s)",
+		cfg.listen, fb.width, fb.height, onOff(s.enabled), onOff(cfg.agentAPI), onOff(cfg.agentExec), onOff(cfg.browserAuto),
+		onOff(cfg.uploadGuard), onOff(cfg.keeperURL != ""))
 	log.Fatal(srv.ListenAndServeTLS("", ""))
 }
 

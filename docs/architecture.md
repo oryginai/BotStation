@@ -166,7 +166,7 @@ Full reference: [mcp/README.md](../mcp/README.md). Python, official `mcp` SDK
 2.x (`MCPServer`), `httpx`. Its container serves Streamable HTTP on :8765
 (`/mcp`); run outside Docker it defaults to stdio.
 
-- 26 tools: one per agent API call, plus `click`/`type_text`/`press_keys`
+- 27 tools: one per agent API call, plus `click`/`type_text`/`press_keys`
   etc. as single steps and `run_actions` for batches.
 - Each action takes `observe` (`screenshot`, `snapshot`, `both`, `none`):
   it waits for the screen to settle, then returns the screenshot or page
@@ -203,6 +203,8 @@ Full reference: [mcp/README.md](../mcp/README.md). Python, official `mcp` SDK
   - `BROWSER_AUTOMATION=false` closes Helium's debugging port and turns off `/agent/browser/`. The port listens on 127.0.0.1 inside the container only; any process in the container can use it, which is no more than root there can already do.
 - **View-only sessions** get no input and no clipboard. `CLIPBOARD=both|to-desktop|from-desktop|off`.
 - **Container**: `no-new-privileges`. Runs as root inside by design (user requirement); the browser runs as the unprivileged `browser` user with Chromium's full sandbox. `seccomp.json` = Docker's default + `clone`/`unshare`/`mount`/`umount2`/`pivot_root` so sandboxes can create namespaces (container root still can't mount: no `CAP_SYS_ADMIN`). GTK's image loaders now sandbox themselves too (bwrap).
+- **Prompt injection** (a page telling the agent what to do): the MCP server fences page content in `<page-content id=random>` tags and tells the agent it is data; snapshots flag text aimed at agents; file pickers are held back so the browser profile can't be uploaded (`BROWSER_UPLOAD_GUARD`); `file:///home/browser` is blocked by policy. See [api.md](api.md#post-agentbrowserupload).
+- **Audit and undo**: every agent call is recorded by the `keeper` service, which also snapshots `/root`; its volumes are mounted in no other container, so the agent can't erase them. See [api.md](api.md#audit-log-and-undo).
 - **`ALLOWED_ORIGINS` defaults to `*`** (OK because auth is a bearer token, not cookies). Set it to the platform origin.
 - **SSH tunnelling**: possible as an admin path, but not for platform viewers (browsers can't speak SSH). TLS 1.3 already gives equivalent encryption.
 
@@ -265,6 +267,7 @@ Ideas not done yet:
 
 - **`bot-station-browser` volume = `/home/browser`**: the browser profile (logins, history, settings).
 - **`bot-station-home` volume = `/root`**: files and app settings survive restart, `down`/`up` and image rebuilds. `docker compose down -v` deletes it.
+- **`bot-station-snapshots` / `bot-station-audit`** (keeper only): undo history of `/root` and the audit log. `scripts/undo.sh` reads and restores them.
 - **Image-managed every start** (so updates apply): `gtk.css` (symlink to `/etc/desktop`), panel/dock and xfwm4 config. Bookmarks are copied only if missing.
 - **Not persistent**: runtime `apt install` (add packages to the Dockerfile instead), `/tmp` (tmpfs), open windows.
 - **Limits from `.env`** via compose: `CPU_LIMIT`, `MEMORY_LIMIT` (swap off), `PIDS_LIMIT`, `SHM_SIZE`, `TMP_SIZE`, `LOG_MAX_SIZE`, `BIND_ADDRESS`, `PORT`.

@@ -19,6 +19,8 @@ services:
     container_name: bot-station
     hostname: bot-station # stable across recreations (browser profile locks, shell prompt)
     env_file: .env
+    environment:
+      KEEPER_URL: http://keeper:8090
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-8443}:8443"
     volumes:
@@ -55,6 +57,41 @@ services:
       # Docker's default seccomp profile + user namespaces, which the
       # browser's sandbox needs (without it the browser would run unsandboxed)
       - seccomp=./computer/seccomp.json
+
+  # Undo history and audit log. Its own container, because an agent on the
+  # computer can be root there (the terminal) and could erase anything kept
+  # alongside it. It shares only the home folder; the snapshots and the log
+  # are in volumes nothing else mounts, and the computer can only append to
+  # the log and ask for a snapshot (internal port, never published).
+  #   scripts/undo.sh    list, diff and restore snapshots; read the audit log
+  keeper:
+    image: bot-station:latest
+    pull_policy: never # built by the computer service
+    platform: linux/amd64
+    container_name: bot-station-keeper
+    entrypoint: ["/usr/bin/tini", "--", "keeper", "serve"]
+    environment:
+      TZ: ${TZ:-}
+      SNAPSHOT_INTERVAL: ${SNAPSHOT_INTERVAL:-60}
+      SNAPSHOT_KEEP: ${SNAPSHOT_KEEP:-100}
+    volumes:
+      - home:/root
+      - snapshots:/snapshots
+      - audit:/audit
+    depends_on:
+      computer:
+        condition: service_started
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, FSETID] # rsync keeps owners and modes
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256m
+    logging: *logging
 
   # The MCP server: the agent API as MCP tools, over Streamable HTTP.
   # Talks to the computer on the internal network and pins its certificate
@@ -97,3 +134,7 @@ volumes:
     name: bot-station-tls
   browser:
     name: bot-station-browser
+  snapshots:
+    name: bot-station-snapshots
+  audit:
+    name: bot-station-audit

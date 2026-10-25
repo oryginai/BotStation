@@ -1,12 +1,14 @@
-# --- Stage 1: desktopd (stream server, control API, agent API) and wallpaper (the
-#     one-shot wallpaper setter), both static Go binaries ---
+# --- Stage 1: desktopd (stream server, control API, agent API), wallpaper (the
+#     one-shot wallpaper setter) and keeper (undo history and audit log, run
+#     as its own compose service), all static Go binaries ---
 FROM golang:1.25 AS desktopd
 WORKDIR /src
 COPY server/go.mod server/go.sum ./
 RUN go mod download
 COPY server/ ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/desktopd . && \
-    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/wallpaper ./cmd/wallpaper
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/wallpaper ./cmd/wallpaper && \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/keeper ./cmd/keeper
 
 # --- Stage 2: Helium (Chromium-based browser), signature-checked ---
 FROM ubuntu:26.04 AS helium
@@ -37,7 +39,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN sed -i "s|archive.ubuntu.com|$UBUNTU_MIRROR|g" /etc/apt/sources.list.d/ubuntu.sources && \
     printf 'path-exclude=/usr/share/locale/*\npath-include=/usr/share/locale/en*\n' > /etc/dpkg/dpkg.cfg.d/nolocale && \
     apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates tini dbus-x11 xvfb x11-xserver-utils curl git \
+        ca-certificates tini dbus-x11 xvfb x11-xserver-utils curl git rsync \
         xfwm4 xfce4-panel xfce4-docklike-plugin xfce4-terminal thunar \
         libnss3 libgtk-3-0t64 libgbm1 libasound2t64 libcups2t64 libxss1 \
         adwaita-icon-theme librsvg2-common fonts-inter-variable fonts-dejavu-core \

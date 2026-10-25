@@ -27,9 +27,12 @@ or changing anything outside this directory.
 3. **Verify.**
 
    ```bash
-   docker compose ps   # computer: healthy; mcp: running
+   docker compose ps   # computer: healthy; mcp: running; keeper: running
    curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8765/mcp   # 401: up, auth on
    ```
+
+   `keeper` (undo history and audit log) starts alongside the computer. If
+   it's missing, the compose file or the image is out of date: rebuild.
 
    If something is wrong, look at `docker compose logs computer` and
    `docker compose logs mcp`.
@@ -47,8 +50,10 @@ or changing anything outside this directory.
 
 5. **Report back.** Give the user the endpoint (`http://127.0.0.1:8765/mcp`),
    tell them `scripts/view.sh` prints a link to watch the desktop live, and
-   tell them where the tokens are (`.env`). Don't paste tokens into chat
-   unless they ask.
+   tell them where the tokens are (`.env`). Mention `scripts/undo.sh` (read
+   the audit log and roll back the home folder) and [DEMO.md](DEMO.md) (a
+   guided set of prompts to try). Don't paste tokens into chat unless they
+   ask.
 
 Rules:
 - Never commit `.env` or print it in full. It holds every credential.
@@ -70,11 +75,13 @@ live view (`scripts/view.sh`) instead of trying to get around it.
 
 | Part | Where | Check with |
 |---|---|---|
-| desktopd: streaming, control + agent APIs, browser over CDP (Go) | `computer/server/` | `cd computer/server && go vet ./... && go test ./...` |
+| desktopd: streaming, control + agent APIs, browser over CDP, audit log (Go) | `computer/server/` | `cd computer/server && go vet ./... && go test ./...` |
+| keeper: undo history of `/root` and the audit log, its own container (Go) | `computer/server/cmd/keeper/` | same `go vet`/`go test`; exercise with `scripts/undo.sh` |
 | MCP server (Python 3.11+, `mcp` SDK 2.x) | `mcp/bot_station_mcp/` | `cd mcp && uvx ruff check . && uv run python -c "import bot_station_mcp.server"` |
 | Desktop image | `computer/Dockerfile`, `entrypoint.sh`, `theme/`, `xfconf/`, `helium/` | `docker compose build computer` |
 | Compose | `compose.yaml` | `docker compose config -q` |
 | End to end | `mcp/tests/smoke_test.py` | see [mcp/README.md](mcp/README.md#testing). It drives the real desktop: not while someone is using it |
+| Both pivots end to end (undo, prompt injection) | `demo/pivot_test.py` | `demo/run.sh` (starts the test sites, drives the desktop; not while someone is using it) |
 
 Read [docs/architecture.md](docs/architecture.md) before larger changes. Its
 "Gotchas" section lists traps that cost real time (compositors, Chromium

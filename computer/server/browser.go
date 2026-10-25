@@ -18,6 +18,16 @@ package main
 //	POST /agent/browser/fill       {"ref", "text", "clear"?, "submit"?, "tab"?}
 //	POST /agent/browser/wait       {"until": load|idle|text, "text"?, "timeout_ms"?, "tab"?}
 //	POST /agent/browser/dialog     {"accept", "text"?, "tab"?}
+//	POST /agent/browser/upload     {"paths": [...], "tab"?}
+//
+// Upload guard (BROWSER_UPLOAD_GUARD, on by default): the browser's file
+// picker never opens. A page asking for a file is reported in the snapshot,
+// and the agent answers with /agent/browser/upload, which only takes files
+// from UPLOAD_DIRS (default /root). The picker runs as the browser user,
+// who can read the browser profile (cookies, saved passwords), so letting
+// an agent steer it would let a hostile page ask for those files. Every
+// tab is watched, including ones the agent never touched, since the agent
+// can also reach a picker with plain clicks.
 
 import (
 	"context"
@@ -26,7 +36,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -46,7 +58,8 @@ const (
 )
 
 type browser struct {
-	addr string
+	addr        string
+	guardUpload bool // intercept file pickers (see the top of this file)
 
 	dialMu sync.Mutex // one connection attempt at a time
 
@@ -83,6 +96,7 @@ type page struct {
 	target, session string
 	ready           bool               // Page and Network events on
 	dialog          *dialog            // an alert/confirm/prompt waiting for an answer
+	chooser         *fileChooser       // a file picker the page opened (upload guard)
 	requests        map[string]request // network requests in flight, by id
 	netChange       time.Time          // last request start or end
 }
@@ -90,6 +104,11 @@ type page struct {
 type request struct {
 	at     time.Time
 	loader string // the document that made it
+}
+
+type fileChooser struct {
+	Mode    string `json:"mode"` // selectSingle or selectMultiple
+	backend int    // the <input type=file>
 }
 
 type dialog struct {
@@ -112,8 +131,8 @@ func (e dialogError) Error() string {
 	return fmt.Sprintf("a %s dialog is open (%q): answer it with POST /agent/browser/dialog", e.d.Type, e.d.Message)
 }
 
-func newBrowser(addr string) *browser {
-	return &browser{addr: addr, pending: map[int]chan cdpMsg{}, pages: map[string]*page{}, subs: map[*sub]struct{}{}}
+func newBrowser(addr string, guardUpload bool) *browser {
+	return &browser{addr: addr, guardUpload: guardUpload, pending: map[int]chan cdpMsg{}, pages: map[string]*page{}, subs: map[*sub]struct{}{}}
 }
 
 // --- connection ---
@@ -230,6 +249,31 @@ func (b *browser) event(m cdpMsg) {
 		if pg != nil {
 			pg.dialog = nil
 		}
+	case "Page.fileChooserOpened":
+		if pg != nil {
+			var p struct {
+				Mode          string `json:"mode"`
+				BackendNodeID int    `json:"backendNodeId"`
+			}
+			json.Unmarshal(m.Params, &p)
+			pg.chooser = &fileChooser{Mode: p.Mode, backend: p.BackendNodeID}
+			log.Printf("browser: the page asked for a file (picker held back by the upload guard)")
+		}
+	case "Target.targetCreated":
+		var p struct {
+			TargetInfo struct {
+				TargetID string `json:"targetId"`
+				Type     string `json:"type"`
+			} `json:"targetInfo"`
+		}
+		json.Unmarshal(m.Params, &p)
+		if b.guardUpload && p.TargetInfo.Type == "page" {
+			go func() { // watch a new tab from the start (b.mu is held here)
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				b.ready(ctx, p.TargetInfo.TargetID)
+			}()
+		}
 	case "Network.requestWillBeSent", "Network.loadingFinished", "Network.loadingFailed":
 		if pg != nil {
 			var p struct {
@@ -259,6 +303,7 @@ func (b *browser) event(m cdpMsg) {
 		}
 		json.Unmarshal(m.Params, &p)
 		if pg != nil && p.Frame.ParentID == "" {
+			pg.chooser = nil
 			for id, r := range pg.requests {
 				if r.loader != p.Frame.LoaderID {
 					delete(pg.requests, id)
@@ -403,14 +448,21 @@ func (b *browser) ready(ctx context.Context, targetID string) (*page, error) {
 	if done {
 		return pg, nil
 	}
-	for _, c := range []struct {
+	steps := []struct {
 		method string
 		params any
 	}{
 		{"Page.enable", nil},
 		{"Page.setLifecycleEventsEnabled", map[string]any{"enabled": true}},
 		{"Network.enable", map[string]any{"maxTotalBufferSize": 1 << 20, "maxResourceBufferSize": 256 << 10}},
-	} {
+	}
+	if b.guardUpload {
+		steps = append(steps, struct {
+			method string
+			params any
+		}{"Page.setInterceptFileChooserDialog", map[string]any{"enabled": true}})
+	}
+	for _, c := range steps {
 		if _, err := b.call(ctx, pg.session, c.method, c.params); err != nil {
 			return nil, err
 		}
@@ -419,6 +471,12 @@ func (b *browser) ready(ctx context.Context, targetID string) (*page, error) {
 	pg.ready = true
 	b.mu.Unlock()
 	return pg, nil
+}
+
+func (b *browser) chooserOf(pg *page) *fileChooser {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return pg.chooser
 }
 
 func (b *browser) dialogOf(pg *page) *dialog {
@@ -790,9 +848,14 @@ type snapshot struct {
 	Dialog *dialog `json:"dialog,omitempty"`
 	// A human check on the page that isn't solved yet: cloudflare,
 	// recaptcha or hcaptcha. The agent hands it to the person in the viewer.
-	Challenge string    `json:"challenge,omitempty"`
+	Challenge string `json:"challenge,omitempty"`
+	// The page asked for a file; answer with /agent/browser/upload
+	FileChooser *fileChooser `json:"file_chooser,omitempty"`
+	// The page's text or element names look written to steer an AI agent
+	Injection bool      `json:"injection,omitempty"`
 	Elements  []element `json:"elements"`
 	Text      string    `json:"text,omitempty"`
+	Scan      string    `json:"scan,omitempty"` // all the page's text, checked for injections, never returned
 }
 
 func (b *browser) snapshot(ctx context.Context, t tab, all bool, maxText int) (*snapshot, error) {
@@ -813,6 +876,13 @@ func (b *browser) snapshot(ctx context.Context, t tab, all bool, maxText int) (*
 		return nil, err
 	}
 	s.Tab = t.ID
+	s.FileChooser = b.chooserOf(pg)
+	words := []string{s.Title, s.Scan}
+	s.Scan = ""
+	for _, e := range s.Elements {
+		words = append(words, e.Name, e.Value)
+	}
+	s.Injection = injection(strings.Join(words, "\n"))
 	return &s, nil
 }
 
@@ -994,6 +1064,7 @@ var snapshotJS = `(opts) => {
     viewport: {x: vp.x, y: vp.y, width: vp.w, height: vp.h},
     scroll: {y: Math.round(scrollY), height: document.documentElement?.scrollHeight || 0}};
   if (opts.maxText > 0) res.text = (document.body?.innerText || '').slice(0, opts.maxText);
+  res.scan = (document.body?.innerText || '').slice(0, 100000); // for the injection check only
   return res;
 }`
 
@@ -1046,6 +1117,7 @@ func (s *server) browserRoutes(h func(string, http.HandlerFunc)) {
 	h("POST /agent/browser/fill", s.handleBrowserFill)
 	h("POST /agent/browser/wait", s.handleBrowserWait)
 	h("POST /agent/browser/dialog", s.handleBrowserDialog)
+	h("POST /agent/browser/upload", s.handleBrowserUpload)
 }
 
 // browserWindows returns the browser's windows, the active window first, then
@@ -1321,6 +1393,10 @@ func (s *server) handleBrowserSnapshot(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		browserFail(w, err)
 		return
+	}
+	note(r, "url", snap.URL)
+	if snap.Injection {
+		note(r, "alerts", "the page shows text aimed at AI agents (prompt injection?)")
 	}
 	writeJSON(w, http.StatusOK, snap)
 }
@@ -1598,4 +1674,110 @@ func (s *server) handleBrowserDialog(w http.ResponseWriter, r *http.Request) {
 	pg.dialog = nil
 	s.br.mu.Unlock()
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// handleBrowserUpload answers a file picker the page opened (held back by
+// the upload guard) with files from UPLOAD_DIRS
+func (s *server) handleBrowserUpload(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Tab   string   `json:"tab"`
+		Paths []string `json:"paths"`
+	}
+	if !readJSON(w, r, 64<<10, &req) {
+		return
+	}
+	if !s.cfg.uploadGuard {
+		browserFail(w, errors.New("the upload guard is off (BROWSER_UPLOAD_GUARD=false): use the browser's own file picker"))
+		return
+	}
+	ctx := r.Context()
+	t, err := s.pickTab(ctx, req.Tab)
+	if err != nil {
+		browserFail(w, err)
+		return
+	}
+	pg, err := s.br.ready(ctx, t.ID)
+	if err != nil {
+		browserFail(w, err)
+		return
+	}
+	ch := s.br.chooserOf(pg)
+	if ch == nil {
+		browserFail(w, errors.New("the page has not asked for a file: click its upload button or file field first"))
+		return
+	}
+	if len(req.Paths) == 0 || (ch.Mode == "selectSingle" && len(req.Paths) > 1) {
+		browserFail(w, fmt.Errorf("paths needs %s", map[bool]string{true: "exactly one file", false: "at least one file"}[ch.Mode == "selectSingle"]))
+		return
+	}
+	files := make([]string, 0, len(req.Paths))
+	for _, p := range req.Paths {
+		f, err := uploadable(p, s.cfg.uploadDirs)
+		if err != nil {
+			note(r, "refused", p)
+			browserFail(w, err)
+			return
+		}
+		files = append(files, f)
+	}
+	if _, err := s.br.call(ctx, pg.session, "DOM.setFileInputFiles", map[string]any{"files": files, "backendNodeId": ch.backend}); err != nil {
+		browserFail(w, err)
+		return
+	}
+	s.br.mu.Lock()
+	pg.chooser = nil
+	s.br.mu.Unlock()
+	note(r, "uploaded", files)
+	note(r, "url", t.URL)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "files": files})
+}
+
+// uploadable resolves path (symlinks too) and checks that it is a file in
+// one of dirs that the browser user can read
+func uploadable(path string, dirs []string) (string, error) {
+	if !filepath.IsAbs(path) {
+		path = filepath.Join("/root", path)
+	}
+	real, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", fmt.Errorf("%s: %v", path, errors.Unwrap(err))
+	}
+	inside := false
+	for _, d := range dirs {
+		d = filepath.Clean(strings.TrimSpace(d))
+		if real == d || strings.HasPrefix(real, d+"/") {
+			inside = true
+		}
+	}
+	if !inside {
+		return "", fmt.Errorf("%s is outside the folders uploads may come from (%s)", path, strings.Join(dirs, ", "))
+	}
+	fi, err := os.Stat(real)
+	switch {
+	case err != nil:
+		return "", err
+	case !fi.Mode().IsRegular():
+		return "", fmt.Errorf("%s is not a file", path)
+	case fi.Mode().Perm()&0o004 == 0:
+		return "", fmt.Errorf("the browser can't read %s (it runs as another user): chmod a+r it first", path)
+	}
+	return real, nil
+}
+
+// guardTabs keeps every tab under the upload guard, also while no agent
+// uses the browser API: it connects when the browser starts, and new tabs
+// are picked up as they open (Target.targetCreated)
+func (s *server) guardTabs() {
+	for range time.Tick(2 * time.Second) {
+		if len(s.browserWindows()) == 0 {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if tabs, err := s.br.targets(ctx); err == nil {
+			for _, t := range tabs {
+				s.br.ready(ctx, t.ID)
+			}
+		}
+		cancel()
+	}
 }

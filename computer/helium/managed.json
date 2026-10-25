@@ -2,5 +2,8 @@
   "DefaultBrowserSettingEnabled": false,
   "MetricsReportingEnabled": false,
   "PromotionsEnabled": false,
-  "DownloadDirectory": "/root/Downloads"
+  "DownloadDirectory": "/root/Downloads",
+  "URLBlocklist": [
+    "file:///home/browser"
+  ]
 }

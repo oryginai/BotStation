@@ -63,6 +63,7 @@ async def main() -> None:
         await run("browser_close_tab", {"id": tab_id})
         await run("browser_navigate", {"action": "back", "observe": "none"})
         await run("browser_click", {"ref": 99999}, expect_error=True)  # stale ref: error text for the agent
+        await run("browser_upload", {"paths": ["/root/Documents"]}, expect_error=True)  # the page asked for no file
         await run("list_windows")
         await run("press_keys", {"keys": "ctrl+l", "observe": "none"})
         await run("type_text", {"text": "example.com\n"})

@@ -16,6 +16,9 @@ package main
 //	POST /agent/clipboard                  {"text"}
 //	POST /agent/launch                     {"app": browser|terminal|files, "url"?, "path"?}
 //	POST /agent/exec                       {"command", "timeout"?, "cwd"?} (only with AGENT_EXEC=true)
+//
+// Every call is recorded in the audit log, and calls that may change things
+// get an undo point first (audit.go).
 //	/agent/browser/...                     see browser.go (only with BROWSER_AUTOMATION=true, the default)
 
 import (
@@ -40,7 +43,7 @@ import (
 )
 
 func (s *server) agentRoutes(mux *http.ServeMux) {
-	h := func(pattern string, fn http.HandlerFunc) { mux.HandleFunc(pattern, s.agentAuth(fn)) }
+	h := func(pattern string, fn http.HandlerFunc) { mux.HandleFunc(pattern, s.agentAuth(s.audited(fn))) }
 	h("GET /agent/status", s.handleAgentStatus)
 	h("GET /agent/screenshot", s.handleScreenshot)
 	h("POST /agent/actions", s.handleActions)
@@ -72,6 +75,7 @@ func (s *server) handleAgentStatus(w http.ResponseWriter, r *http.Request) {
 		"pointer": map[string]int{"x": px, "y": py},
 		"browser": br,
 		"exec":    s.cfg.agentExec,
+		"audit":   s.cfg.keeperURL != "",
 	})
 }
 
@@ -641,6 +645,10 @@ func (s *server) handleExec(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("agent exec (%d): %.80q", code, req.Command)
+	note(r, "exit_code", code)
+	if out := stdout.buf.String() + stderr.buf.String(); out != "" {
+		note(r, "output", trimStrings(out))
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"exit_code": code, "stdout": stdout.buf.String(), "stderr": stderr.buf.String(),
 		"truncated": stdout.truncated || stderr.truncated, "timed_out": ctx.Err() == context.DeadlineExceeded,
